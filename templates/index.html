@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contextual Codebase Explainer</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+ 
+  <script>
+  // --- ENHANCED COLORFUL INITIALIZATION ---//
+  mermaid.initialize({
+    startOnLoad: false, 
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#e0f2fe',      /* Light Blue */
+      primaryTextColor: '#0369a1',  /* Dark Blue */
+      primaryBorderColor: '#0ea5e9',/* Sky Blue */
+      lineColor: '#64748b',         /* Slate Gray */
+      secondaryColor: '#f0fdf4',    /* Light Green */
+      tertiaryColor: '#fff7ed',     /* Light Orange */
+      fontSize: '16px',
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+    },
+    flowchart: {
+      htmlLabels: true,
+      /* CHANGE: monotoneX creates gentle curves that don't swing wide into text */
+      curve: 'monotoneX', 
+      useMaxWidth: false,
+      /* CHANGE: Increased padding and spacing to push elements apart */
+      diagramPadding: 50,
+      nodeSpacing: 100,
+      rankSpacing: 120
+    }
+  });
+  </script>
+</head>
+<body>
+
+<header>
+  <h1>Contextual Codebase Explainer</h1>
+  <p>Understand large codebases. Avoid breaking things. Learn safely.</p>
+</header>
+
+<main>
+  <section class="inputs">
+    <label for="code_file">Upload Project (ZIP or single file)</label>
+    <input type="file" id="code_file" accept=".zip,.py,.js,.ts,.java,.html,.css">
+
+    <label for="code">Or Paste Code to Analyze</label>
+    <textarea id="code" placeholder="Paste your code here..."></textarea>
+
+    <label for="docs">Project Style Guide / Docs</label>
+    <textarea id="docs" placeholder="Paste any documentation or style guides..."></textarea>
+
+    <label for="old_code">Previous Version (optional)</label>
+    <textarea id="old_code" placeholder="Paste previous version of code..."></textarea>
+
+    <label for="question">Ask a Question (optional)</label>
+    <input id="question" placeholder="Can I change this safely?" />
+
+    <button onclick="analyze()">Analyze Code</button>
+    <div id="status"></div>
+    <div id="loading" class="spinner hidden"></div>
+  </section>
+
+  <section class="outputs">
+    <div class="card full-width">
+      <h2>📊 Visual Logic Flow</h2>
+      <div id="mermaid-container" class="mermaid"></div>
+    </div>
+
+    <div class="card"><h2>🧱 Big Picture</h2><pre id="big_picture">—</pre></div>
+    <div class="card"><h2>🧠 Why This Code Exists</h2><pre id="why_this_exists">—</pre></div>
+    <div class="card"><h2>⚠️ Hidden Traps</h2><pre id="hidden_traps">—</pre></div>
+    <div class="card"><h2>🧑‍🏫 Mentor Answer</h2><pre id="mentor_answer">Ask a question.</pre></div>
+    <div class="card"><h2>🔄 Backward Compatibility</h2><pre id="backward_compatibility">Optional.</pre></div>
+  </section>
+</main>
+
+<script>
+  async function analyze() {
+    const spinner = document.getElementById("loading");
+    const status = document.getElementById("status");
+    const mermaidDiv = document.getElementById("mermaid-container");
+
+    spinner.classList.remove("hidden");
+    status.textContent = "Analyzing codebase and generating diagrams...";
+
+    const formData = new FormData();
+    formData.append("code", document.getElementById("code").value);
+    formData.append("docs", document.getElementById("docs").value);
+    formData.append("old_code", document.getElementById("old_code").value);
+    formData.append("question", document.getElementById("question").value);
+    
+    const fileInput = document.getElementById("code_file");
+    if (fileInput.files[0]) {
+      formData.append("code_file", fileInput.files[0]);
+    }
+
+    try {
+      const res = await fetch("/analyze", {
+        method: "POST",
+        body: formData 
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      document.getElementById("big_picture").textContent = data.big_picture || "—";
+      document.getElementById("why_this_exists").textContent = data.why_this_exists || "—";
+      document.getElementById("hidden_traps").textContent = data.hidden_traps || "—";
+      document.getElementById("mentor_answer").textContent = data.mentor_answer || "No question asked.";
+      document.getElementById("backward_compatibility").textContent = data.backward_compatibility || "Not provided.";
+
+      if (data.flow) {
+          // 1. Clear previous processing state
+          mermaidDiv.removeAttribute('data-processed');
+          
+          // 2. Aggressive Clean: Remove ```mermaid, backticks, and any leading/trailing whitespace
+          let cleanFlow = data.flow
+              .replace(/```mermaid/g, "")
+              .replace(/```/g, "")
+              .trim();
+          
+          // 3. Inject and render
+          mermaidDiv.innerHTML = cleanFlow;
+          await mermaid.run({ nodes: [mermaidDiv] });
+      }
+
+      status.textContent = "✅ Analysis Complete";
+    } catch (e) {
+      status.textContent = "❌ Analysis Error: " + e.message;
+      console.error(e);
+    } finally {
+      spinner.classList.add("hidden");
+    }
+  }
+</script>
+
+</body>
+</html>
